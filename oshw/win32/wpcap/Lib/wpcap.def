@@ -1,4 +1,5 @@
 EXPORTS
+	pcap_lib_version
 	pcap_findalldevs
 	pcap_freealldevs
 	pcap_open
