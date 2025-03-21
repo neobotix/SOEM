@@ -1,0 +1,9 @@
+EXPORTS
+	pcap_lib_version
+	pcap_findalldevs
+	pcap_freealldevs
+	pcap_open
+	pcap_close
+	pcap_sendpacket
+	pcap_next_ex
+
