@@ -11,6 +11,9 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
+if(WIN32)
+  option(SOEM_PCAP_DELAYED "Link Pcap as a delayed library" OFF)
+endif()
 
 set(SOEM_INCLUDE_INSTALL_DIR include/soem)
 set(SOEM_LIB_INSTALL_DIR lib)
@@ -38,7 +41,12 @@ if(WIN32)
     message(STATUS "Win32 non-MSVC")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
   endif()
-  set(OS_LIBS wpcap.lib Packet.lib Ws2_32.lib Winmm.lib)
+  set(OS_LIBS Packet.lib Ws2_32.lib Winmm.lib)
+  if(SOEM_PCAP_DELAYED AND NOT MSVC)
+    set(OS_LIBS ${OS_LIBS} wpcap-delayed.lib)
+  else()
+    set(OS_LIBS ${OS_LIBS} wpcap.lib)
+  endif()
 elseif(UNIX AND NOT APPLE)
   set(OS "linux")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
@@ -88,6 +96,11 @@ if (BUILD_SHARED_LIBS)
 endif(BUILD_SHARED_LIBS)
 
 target_link_libraries(soem ${OS_LIBS})
+if(MSVC)
+  if(SOEM_PCAP_DELAYED)
+    target_link_options(soem PRIVATE "/DELAYLOAD:wpcap.dll")
+  endif()
+endif()
 
 target_include_directories(soem PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/soem>
@@ -124,3 +137,9 @@ if(BUILD_TESTS)
   add_subdirectory(test/linux/eepromtool)
   add_subdirectory(test/linux/simple_test)
 endif()
+
+add_custom_command(
+	OUTPUT wpcap-delayed.lib
+	COMMAND dlltool -d wpcap.def -y wpcap-delayed.lib
+	DEPENDS wpcap.def
+)
