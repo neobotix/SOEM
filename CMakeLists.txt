@@ -11,6 +11,9 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
+if(WIN32)
+  option(SOEM_PCAP_DELAYLOAD "Link Pcap as a delayed library" OFF)
+endif()
 
 set(SOEM_INCLUDE_INSTALL_DIR include/soem)
 set(SOEM_LIB_INSTALL_DIR lib)
@@ -37,8 +40,24 @@ if(WIN32)
   else()
     message(STATUS "Win32 non-MSVC")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
+    if(SOEM_PCAP_DELAYLOAD)
+      add_custom_command(
+        OUTPUT wpcap-delayed.lib
+        COMMAND dlltool -d ${CMAKE_CURRENT_SOURCE_DIR}/oshw/win32/wpcap/wpcap.def -D wpcap.dll -y wpcap-delayed.lib
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/oshw/win32/wpcap/wpcap.def
+      )
+      add_custom_target(wpcap_delayed_target DEPENDS wpcap-delayed.lib)
+      add_library(wpcap_delayed STATIC IMPORTED)
+      add_dependencies(wpcap_delayed wpcap_delayed_target)
+      set_target_properties(wpcap_delayed PROPERTIES
+        IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/wpcap-delayed.lib
+      )
+    endif()
   endif()
-  set(OS_LIBS ${EXTERNAL_LIB_PATH}/wpcap.lib ${EXTERNAL_LIB_PATH}/Packet.lib Ws2_32.lib Winmm.lib)
+  set(OS_LIBS ${EXTERNAL_LIB_PATH}/Packet.lib Ws2_32.lib Winmm.lib)
+  if(MSVC OR NOT SOEM_PCAP_DELAYLOAD)
+    set(OS_LIBS ${OS_LIBS} ${EXTERNAL_LIB_PATH}/wpcap.lib)
+  endif()
 elseif(UNIX AND NOT APPLE)
   set(OS "linux")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
@@ -88,6 +107,13 @@ if (BUILD_SHARED_LIBS)
 endif(BUILD_SHARED_LIBS)
 
 target_link_libraries(soem ${OS_LIBS})
+if(SOEM_PCAP_DELAYLOAD)
+  if(MSVC)
+    target_link_options(soem PRIVATE "/DELAYLOAD:wpcap.dll")
+  else()
+    target_link_libraries(soem wpcap_delayed)
+  endif()
+endif()
 
 target_include_directories(soem PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/soem>
